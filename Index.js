@@ -1,6 +1,6 @@
-const TelegramBot = require("node-telegram-bot-api");
-const axios = require("axios");
-const cheerio = require("cheerio");
+import TelegramBot from "node-telegram-bot-api";
+import { get } from "axios";
+import { load } from "cheerio";
 
 const token = process.env.BOT_TOKEN; // Đặt token bot Telegram vào biến môi trường
 const bot = new TelegramBot(token, { polling: true });
@@ -29,16 +29,16 @@ async function searchProductByJan(janCode) {
 
   for (let page = 1; page <= MAX_PAGES; page++) {
     const listUrl = `https://www.mobile-ichiban.com/product-list?page=${page}`;
-    const listRes = await axios.get(listUrl);
-    const $ = cheerio.load(listRes.data);
+    const listRes = await get(listUrl);
+    const $ = load(listRes.data);
 
     const productLinks = $(".product_list .product_item a")
       .map((_, el) => "https://www.mobile-ichiban.com" + $(el).attr("href"))
       .get();
 
     for (const link of productLinks) {
-      const productRes = await axios.get(link);
-      const $$ = cheerio.load(productRes.data);
+      const productRes = await get(link);
+      const $$ = load(productRes.data);
 
       const janText = $$("th:contains('JANコード')").next("td").text().trim();
 
