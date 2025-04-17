@@ -2,7 +2,7 @@ const TelegramBot = require("node-telegram-bot-api");
 const axios = require("axios");
 const cheerio = require("cheerio");
 
-const token = process.env.BOT_TOKEN; // Đặt token bot Telegram vào biến môi trường
+const token = process.env.BOT_TOKEN; 
 const bot = new TelegramBot(token, { polling: true });
 
 bot.on("message", async (msg) => {
@@ -32,18 +32,21 @@ async function searchProductByJan(janCode) {
     const url = `https://www.mobile-ichiban.com/Prod/${i}`;
     const res = await axios.get(url);
     const $ = cheerio.load(res.data);
-
-    $(".product_list .product_item").each((_, el) => {
+  
+    $(".card-body .text-center").each((_, el) => {
       const item = $(el);
-      const text = item.text();
-      
+      const text = item.text().trim();  // Lấy toàn bộ văn bản trong phần tử
+  
       // Kiểm tra nếu chứa mã JAN
-      if (text.includes(janCode)) {
-        const name = item.find(".product_name").text().trim();
-        const price = item.find(".price").text().trim();
+      const janMatch = text.match(/JAN:(\d{8,13})/); // Tìm mã JAN trong văn bản
+      if (janMatch) {
+        const janCode = janMatch[1];  // Lấy mã JAN từ match
+        const name = item.find('label[data-original-title]').attr('data-original-title') || " Không có tên sản phẩm. ß";  // Tên sản phẩm
+        const price = item.find('.badge-warning').text().trim() || "Giá liên hệ: ";  // Giá (hoặc "Giá liên hệ")
         const relativeLink = item.find("a").attr("href");
         const fullLink = "https://www.mobile-ichiban.com" + relativeLink;
-
+  
+        // Đưa vào kết quả
         results.push(`✅ Tìm thấy:\n🛒 ${name}\n💴 ${price}\n🔗 ${fullLink}`);
       }
     });
