@@ -1,38 +1,55 @@
-const TelegramBot = require('node-telegram-bot-api');
-const axios = require('axios');
-const cheerio = require('cheerio');
+const TelegramBot = require("node-telegram-bot-api");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-const token = process.env.BOT_TOKEN; // Lấy token từ biến môi trường
+const token = process.env.BOT_TOKEN; // Đặt token bot Telegram vào biến môi trường
 const bot = new TelegramBot(token, { polling: true });
 
-bot.on('message', async (msg) => {
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
-  const jan = msg.text.trim();
+  const janCode = msg.text.trim();
 
-  if (!/^\d{8,13}$/.test(jan)) {
-    return bot.sendMessage(chatId, '⚠️ Vui lòng nhập đúng mã JAN (8-13 chữ số).');
+  if (!/^\d{8,13}$/.test(janCode)) {
+    return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng mã JAN (8-13 chữ số).");
   }
 
-  const info = await searchProduct(jan);
-  bot.sendMessage(chatId, info);
-});
+  bot.sendMessage(chatId, `🔎 Đang tìm sản phẩm với mã JAN: ${janCode}... Vui lòng chờ.`);
 
-async function searchProduct(janCode) {
   try {
-    const url = `https://www.mobile-ichiban.com/product-list?keyword=${janCode}`;
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-
-    const firstItem = $('.product_list .product_item').first();
-
-    if (!firstItem.length) return '❌ Không tìm thấy sản phẩm nào với mã JAN này.';
-
-    const title = firstItem.find('h2').text().trim();
-    const price = firstItem.find('.price').text().trim();
-
-    return `🔍 Sản phẩm: ${title || 'Không rõ'}\n💴 Giá: ${price || 'Không có thông tin'}\n🔗 Link: ${url}`;
+    const result = await searchProductByJan(janCode);
+    bot.sendMessage(chatId, result);
   } catch (err) {
     console.error(err);
-    return '❌ Lỗi khi tìm kiếm sản phẩm.';
+    bot.sendMessage(chatId, "❌ Lỗi xảy ra khi tìm kiếm sản phẩm.");
   }
+});
+
+async function searchProductByJan(janCode) {
+  const MAX_PAGES = 5;
+
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const listUrl = `https://www.mobile-ichiban.com/product-list?page=${page}`;
+    const listRes = await axios.get(listUrl);
+    const $ = cheerio.load(listRes.data);
+
+    const productLinks = $(".product_list .product_item a")
+      .map((_, el) => "https://www.mobile-ichiban.com" + $(el).attr("href"))
+      .get();
+
+    for (const link of productLinks) {
+      const productRes = await axios.get(link);
+      const $$ = cheerio.load(productRes.data);
+
+      const janText = $$("th:contains('JANコード')").next("td").text().trim();
+
+      if (janText === janCode) {
+        const title = $$("h1").text().trim();
+        const price = $$(".product_detail .price").first().text().trim();
+        return `✅ Tìm thấy sản phẩm!\n\n🛒 Tên: ${title}\n💴 Giá: ${price}\n🔗 Link: ${link}`;
+      }
+    }
+  }
+
+  return "❌ Không tìm thấy sản phẩm nào với mã JAN này.";
 }
+
