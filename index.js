@@ -24,32 +24,35 @@ bot.on("message", async (msg) => {
   }
 });
 
+
 async function searchProductByJan(janCode) {
-  const MAX_PAGES = 5;
+  const results = [];
+  
+  for (let i = 1; i <= 4; i++) {
+    const url = `https://www.mobile-ichiban.com/Prod/${i}`;
+    const res = await axios.get(url);
+    const $ = cheerio.load(res.data);
 
-  for (let page = 1; page <= MAX_PAGES; page++) {
-    const listUrl = `https://www.mobile-ichiban.com/product-list?page=${page}`;
-    const listRes = await axios.get(listUrl);
-    const $ = cheerio.load(listRes.data);
+    $(".product_list .product_item").each((_, el) => {
+      const item = $(el);
+      const text = item.text();
+      
+      // Kiểm tra nếu chứa mã JAN
+      if (text.includes(janCode)) {
+        const name = item.find(".product_name").text().trim();
+        const price = item.find(".price").text().trim();
+        const relativeLink = item.find("a").attr("href");
+        const fullLink = "https://www.mobile-ichiban.com" + relativeLink;
 
-    const productLinks = $(".product_list .product_item a")
-      .map((_, el) => "https://www.mobile-ichiban.com" + $(el).attr("href"))
-      .get();
-
-    for (const link of productLinks) {
-      const productRes = await axios.get(link);
-      const $$ = cheerio.load(productRes.data);
-
-      const janText = $$("th:contains('JANコード')").next("td").text().trim();
-
-      if (janText === janCode) {
-        const title = $$("h1").text().trim();
-        const price = $$(".product_detail .price").first().text().trim();
-        return `✅ Tìm thấy sản phẩm!\n\n🛒 Tên: ${title}\n💴 Giá: ${price}\n🔗 Link: ${link}`;
+        results.push(`✅ Tìm thấy:\n🛒 ${name}\n💴 ${price}\n🔗 ${fullLink}`);
       }
-    }
+    });
   }
 
-  return "❌ Không tìm thấy sản phẩm nào với mã JAN này.";
+  if (results.length > 0) {
+    return results.join("\n\n");
+  } else {
+    return "❌ Không tìm thấy sản phẩm nào với mã JAN này.";
+  }
 }
 
