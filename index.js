@@ -13,7 +13,7 @@ bot.on("message", async (msg) => {
     return bot.sendMessage(chatId, "⚠️ Vui lòng nhập đúng mã JAN (8-13 chữ số).");
   }
 
-  bot.sendMessage(chatId, `🔎 Đang tìm sản phẩm với mã JAN: ${janCode}... Vui lòng chờ.`);
+  bot.sendMessage(chatId, `🔎 Đang tìm sản phẩm với mã JAN: ${janCode}  ... Vui lòng chờ.`);
 
   try {
     const result = await searchProductByJan(janCode);
@@ -24,45 +24,40 @@ bot.on("message", async (msg) => {
   }
 });
 
-
 async function searchProductByJan(janCode) {
   const results = [];
-  let found = false;
-  let text = "Null";
+  const payload = new URLSearchParams();
+  payload.append("g01ListOrImg", "1");
+  payload.append("g01Search", janCode);
 
-  for (let i = 1; i <= 4; i++) {
-    const url = `https://www.mobile-ichiban.com/Prod/${i}`;
-    const res = await axios.get(url);
-    const $ = cheerio.load(res.data);
-
-    $(".card-body .text-center").each((_, el) => {
-      if (found) return; // Nếu đã tìm thấy thì không xử lý tiếp
-
-      const item = $(el);
-      text = item.text().trim();
-      const janMatch = text.match(/JAN:(\d{8,13})/);
-
-      if (janMatch) {
-        const foundJanCode = janMatch[1];
-        if (foundJanCode === janCode) {
-          const name = item.find('label[data-original-title]').attr('data-original-title') || "Không có tên sản phẩm";
-          const price = item.find('.badge-warning').text().trim() || "Giá liên hệ";
-          const relativeLink = item.find("a").attr("href") || "";
-          const fullLink = "https://www.mobile-ichiban.com" + relativeLink;
-
-          results.push(`✅ Tìm thấy:\n🛒 ${name}\n💴 ${price}\n🔗 ${fullLink}`);
-          found = true;
-        }
-      }
-    });
-
-    if (found) break; // Thoát khỏi vòng lặp sau khi tìm thấy
-  }
+  const response = await axios.post(
+    "https://www.mobile-ichiban.com",
+    payload,
+    {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+      },
+    }
+  );
+  const html = response.data;
+  const $ = cheerio.load(html);
+  $(".card-body").each((i, el) => {
+    const item = $(el);
+    let text = item.text().trim(); // Dùng let thay vì const
+    text = text.replace(/\s{2,}/g, '\n');
+    
+    if (text.includes(janCode)) {
+      results.push(`✅ Tìm thấy sản phẩm: \n🛒 ${text}`);
+    }
+    
+  });
 
   if (results.length > 0) {
     return results.join("\n\n");
   } else {
-    return "❌ Không tìm thấy sản phẩm nào với mã JAN này." + text;
+    return "❌ Không tìm thấy sản phẩm nào với mã JAN: " + janCode;
   }
 }
 
